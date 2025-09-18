@@ -235,7 +235,8 @@
         const socket = io();
         let peerConnections = {}; // monitorId -> RTCPeerConnection
         let streams = {}; // monitorId -> MediaStream
-        let selectedMonitors = [];
+    let selectedMonitors = [];
+    let focusMonitorId = null;
         let availableMonitors = [];
         let roomId = null;
         let isConnected = false;
@@ -284,12 +285,32 @@
             connectionStatus.className = 'connection-status status-connecting';
             if (data.monitors && data.monitors.length > 0) {
                 availableMonitors = data.monitors;
+                // Anslut automatiskt till alla monitorer
+                availableMonitors.forEach(monitorId => {
+                    if (!selectedMonitors.includes(monitorId)) {
+                        selectedMonitors.push(monitorId);
+                        socket.emit('request-offer', { monitorId });
+                    }
+                });
                 showMonitorList();
             }
         });
 
         socket.on('monitors-updated', (data) => {
             availableMonitors = data.monitors || [];
+            // Anslut automatiskt till nya monitorer
+            availableMonitors.forEach(monitorId => {
+                if (!selectedMonitors.includes(monitorId)) {
+                    selectedMonitors.push(monitorId);
+                    socket.emit('request-offer', { monitorId });
+                }
+            });
+            // Ta bort video för monitorer som inte längre finns
+            Object.keys(streams).forEach(monitorId => {
+                if (!availableMonitors.includes(monitorId)) {
+                    removeVideoElement(monitorId);
+                }
+            });
             showMonitorList();
         });
 
@@ -394,50 +415,46 @@
                 return;
             }
             monitorListContainer.style.display = 'block';
-            // Skapa checkboxar för varje monitor
+            // Skapa "fokus"-knappar för varje monitor
             availableMonitors.forEach(monitorId => {
-                const label = document.createElement('label');
-                label.style.marginRight = '1em';
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.value = monitorId;
-                checkbox.checked = selectedMonitors.includes(monitorId);
-                checkbox.onchange = () => {
-                    if (checkbox.checked) {
-                        selectMonitor(monitorId);
+                const btn = document.createElement('button');
+                btn.textContent = focusMonitorId === monitorId ? 'Visa alla' : 'Fokusera';
+                btn.style.marginRight = '0.5em';
+                btn.onclick = () => {
+                    if (focusMonitorId === monitorId) {
+                        focusMonitorId = null;
+                        updateVideoFocus();
+                        showMonitorList();
                     } else {
-                        deselectMonitor(monitorId);
+                        focusMonitorId = monitorId;
+                        updateVideoFocus();
+                        showMonitorList();
                     }
                 };
-                label.appendChild(checkbox);
-                label.appendChild(document.createTextNode(' ' + monitorId.substring(0, 8)));
+                const label = document.createElement('span');
+                label.textContent = ' ' + monitorId.substring(0, 8);
+                monitorList.appendChild(btn);
                 monitorList.appendChild(label);
             });
-            // Ta bort video för monitorer som inte längre finns
+        }
+
+        function updateVideoFocus() {
             Object.keys(streams).forEach(monitorId => {
-                if (!availableMonitors.includes(monitorId)) {
-                    removeVideoElement(monitorId);
+                let video = document.getElementById('video-' + monitorId);
+                if (video) {
+                    if (focusMonitorId && focusMonitorId !== monitorId) {
+                        video.style.display = 'none';
+                    } else {
+                        video.style.display = 'inline-block';
+                        video.style.width = focusMonitorId ? '96vw' : '48%';
+                        video.style.height = focusMonitorId ? '80vh' : '48%';
+                        video.style.margin = focusMonitorId ? 'auto' : '1%';
+                    }
                 }
             });
         }
 
-        function selectMonitor(monitorId) {
-            if (!selectedMonitors.includes(monitorId)) {
-                selectedMonitors.push(monitorId);
-                // Initiera WebRTC-anslutning genom att be monitorn skicka offer
-                socket.emit('request-offer', { monitorId });
-            }
-        }
-
-        function deselectMonitor(monitorId) {
-            selectedMonitors = selectedMonitors.filter(id => id !== monitorId);
-            removeVideoElement(monitorId);
-            if (peerConnections[monitorId]) {
-                peerConnections[monitorId].close();
-                delete peerConnections[monitorId];
-            }
-            delete streams[monitorId];
-        }
+        // selectMonitor och deselectMonitor behövs ej längre (automatisk anslutning)
 
         function addVideoElement(monitorId, stream) {
             let video = document.getElementById('video-' + monitorId);
@@ -450,9 +467,19 @@
                 video.style.height = '48%';
                 video.style.margin = '1%';
                 video.style.background = '#222';
+                video.onclick = () => {
+                    if (focusMonitorId === monitorId) {
+                        focusMonitorId = null;
+                    } else {
+                        focusMonitorId = monitorId;
+                    }
+                    updateVideoFocus();
+                    showMonitorList();
+                };
                 videoContainer.appendChild(video);
             }
             video.srcObject = stream;
+            updateVideoFocus();
         }
 
         function removeVideoElement(monitorId) {
