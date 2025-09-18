@@ -5,465 +5,109 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DoggyCam - Viewer Device</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            background: #1a1a1a;
-            color: white;
-            overflow: hidden;
-        }
-        
-        .header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 1rem;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-        }
-        
-        .header h1 {
-            text-align: center;
-            font-size: 1.5rem;
-        }
-        
-        .connection-form {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2rem;
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            text-align: center;
-            z-index: 200;
-        }
-        
-        .form-group {
-            margin: 1rem 0;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-size: 1.1rem;
-        }
-        
-        .form-group input {
-            width: 100%;
-            padding: 1rem;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.1rem;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-        }
-        
-        .btn {
-            padding: 1rem 2rem;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 1.1rem;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            margin: 0.5rem;
-        }
-        
-        .btn-connect {
-            background: linear-gradient(45deg, #4ecdc4, #44a08d);
-            color: white;
-        }
-        
-        .btn-connect:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.4);
-        }
-        
-        .btn-connect:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .status {
-            position: fixed;
-            top: 70px;
-            left: 1rem;
-            right: 1rem;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 1rem;
-            border-radius: 10px;
-            z-index: 90;
-            text-align: center;
-            display: none;
-        }
-        
-        .connection-status {
-            font-size: 0.9rem;
-            padding: 0.5rem;
-            border-radius: 20px;
-            display: inline-block;
-            margin: 0.25rem;
-        }
-        
-        .status-connecting {
-            background: #ffa726;
-        }
-        
-        .status-connected {
-            background: #4caf50;
-        }
-        
-        .status-disconnected {
-            background: #f44336;
-        }
-        
-        .video-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-        }
-        
-        #remoteVideo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .controls {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 1rem;
-            z-index: 100;
-        }
-        
-        .btn-disconnect {
-            background: #f44336;
-            color: white;
-            padding: 1rem;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 1.1rem;
-        }
-        
-        .loading {
-            text-align: center;
-            font-size: 1.2rem;
-            padding: 2rem;
-            display: none;
-        }
-
-        .error-message {
-            background: rgba(244, 67, 54, 0.9);
-            color: white;
-            padding: 1rem;
-            border-radius: 10px;
-            margin: 1rem 0;
-            display: none;
-        }
-
-        .instruction {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-top: 1rem;
-        }
+        body { background: #1a1a1a; color: white; font-family: Arial, sans-serif; }
+        .header { text-align: center; margin-top: 2rem; }
+        .connection-form { text-align: center; margin: 2rem; }
+        .status { text-align: center; margin: 1rem; }
+        .video-container { display: flex; justify-content: center; align-items: center; height: 60vh; }
+        #monitor-video { width: 80vw; max-width: 600px; background: #000; border-radius: 10px; }
+        .controls { text-align: center; margin: 2rem; }
+        .error-message { color: #fff; background: #f44336; padding: 1rem; border-radius: 10px; margin: 1rem; display: none; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>👀 DoggyCam Viewer</h1>
     </div>
-    
     <div class="connection-form" id="connectionForm">
         <h2>Connect to Monitor</h2>
-        <div class="form-group">
-            <label for="roomIdInput">Enter Room ID:</label>
-            <input type="text" id="roomIdInput" placeholder="e.g., abc123-def456" autofocus>
-        </div>
+        <input type="text" id="roomIdInput" placeholder="Enter Room ID" autofocus>
+        <button id="connectBtn" onclick="connectToRoom()">🔗 Connect</button>
         <div class="error-message" id="errorMessage"></div>
-        <button class="btn btn-connect" id="connectBtn" onclick="connectToRoom()">
-            🔗 Connect
-        </button>
-        <div class="instruction">
-            Get the Room ID from the Monitor Device
-        </div>
     </div>
-    
-    <div class="status" id="status">
+    <div class="status" id="status" style="display:none;">
         <div class="connection-status" id="connectionStatus">Connecting...</div>
         <div id="roomInfo"></div>
-        <div id="monitorListContainer" style="margin-top:1rem; display:none;">
-            <label for="monitorList">Select monitor(s):</label>
-            <div id="monitorList"></div>
-        </div>
     </div>
-
-    <div class="video-container" id="videoContainer">
-        <!-- Multiple video elements will be added here -->
-        <div class="loading" id="loading">
-            <div>📡 Connecting to monitor...</div>
-        </div>
+    <div class="video-container" id="videoContainer"></div>
+    <div class="controls" id="controls" style="display:none;">
+        <button onclick="disconnect()">❌ Disconnect</button>
     </div>
-
-    <div class="controls" style="display: none;" id="controls">
-        <button class="btn-disconnect" onclick="disconnect()">
-            ❌ Disconnect
-        </button>
-    </div>
-
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
-        socket.on('connect', () => {
-            console.log('[Socket.IO] Connected to server, socket id:', socket.id);
-        });
-        socket.on('disconnect', (reason) => {
-            console.warn('[Socket.IO] Disconnected from server:', reason);
-        });
-        socket.on('connect_error', (err) => {
-            console.error('[Socket.IO] Connection error:', err);
-        });
-        let peerConnections = {}; // monitorId -> RTCPeerConnection
-        let streams = {}; // monitorId -> MediaStream
-    let selectedMonitors = [];
-    let focusMonitorId = null;
-        let availableMonitors = [];
-        let roomId = null;
-        let isConnected = false;
-        const socket = io();
-        let roomId = null;
-        let pc = null;
-        let stream = null;
+    const socket = io();
+    let roomId = null;
+    let pc = null;
+    let stream = null;
+    const connectionForm = document.getElementById('connectionForm');
+    const roomIdInput = document.getElementById('roomIdInput');
+    const connectBtn = document.getElementById('connectBtn');
+    const status = document.getElementById('status');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const roomInfo = document.getElementById('roomInfo');
+    const loading = null;
+    const controls = document.getElementById('controls');
+    const errorMessage = document.getElementById('errorMessage');
+    const videoContainer = document.getElementById('videoContainer');
+    const rtcConfig = { iceServers: [ { urls: 'stun:stun.l.google.com:19302' } ] };
 
-        // DOM elements
-        const connectionForm = document.getElementById('connectionForm');
-        const roomIdInput = document.getElementById('roomIdInput');
-        const connectBtn = document.getElementById('connectBtn');
-        const status = document.getElementById('status');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const roomInfo = document.getElementById('roomInfo');
-        const loading = document.getElementById('loading');
-        const controls = document.getElementById('controls');
-        const errorMessage = document.getElementById('errorMessage');
-        const videoContainer = document.getElementById('videoContainer');
-
-        const rtcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
-
-        window.addEventListener('load', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlRoomId = urlParams.get('room');
-            if (urlRoomId) {
-                roomIdInput.value = urlRoomId;
-                setTimeout(() => connectToRoom(), 500);
-            }
-        });
-
-        socket.on('viewer-registered', (data) => {
-            console.log('Registered as viewer for room:', data.roomId);
-            connectionForm.style.display = 'none';
-            status.style.display = 'block';
-            loading.style.display = 'block';
-            roomInfo.textContent = `Room: ${data.roomId}`;
-            connectionStatus.textContent = 'Waiting for monitor...';
-            connectionStatus.className = 'connection-status status-connecting';
-        });
-
-        socket.on('offer', (data) => {
-            handleOffer(data.offer);
-        });
-
-        socket.on('ice-candidate', (data) => {
-            if (pc) {
-                pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-            }
-        });
-
-        socket.on('error', (data) => {
-            showError(data.message);
-            connectBtn.disabled = false;
-            connectBtn.textContent = '🔗 Connect';
-        });
-
-        async function handleOffer(offer) {
-            try {
-                if (pc) pc.close();
-                pc = new RTCPeerConnection(rtcConfig);
-
-                pc.ontrack = (event) => {
-                    if (!stream) {
-                        stream = event.streams[0];
-                        addVideoElement(stream);
-                    }
-                };
-
-                pc.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        socket.emit('ice-candidate', {
-                            candidate: event.candidate,
-                            roomId,
-                            sender: 'viewer',
-                        });
-                    }
-                };
-
-                await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                socket.emit('answer', { answer, roomId });
-            } catch (error) {
-                showError('Failed to connect to monitor.');
-            }
+    window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoomId = urlParams.get('room');
+        if (urlRoomId) {
+            roomIdInput.value = urlRoomId;
+            setTimeout(() => connectToRoom(), 500);
         }
-
-        function addVideoElement(stream) {
-            const video = document.createElement('video');
-            video.id = 'monitor-video';
-            video.autoplay = true;
-            video.playsInline = true;
-            video.srcObject = stream;
-            video.className = 'monitor-video';
-            videoContainer.appendChild(video);
-            loading.style.display = 'none';
-            controls.style.display = 'block';
-        }
-
-        function connectToRoom() {
-            roomId = roomIdInput.value.trim();
-            if (!roomId) {
-                showError('Please enter a Room ID.');
-                return;
-            }
-            connectBtn.disabled = true;
-            connectBtn.textContent = '🔗 Connecting...';
-            socket.emit('register-viewer', { roomId });
-        }
-
-        function disconnect() {
-            window.location.reload();
-        }
-
-        function showError(msg) {
-            errorMessage.textContent = msg;
-            errorMessage.style.display = 'block';
-        }
-            });
-        }
-
-        // selectMonitor och deselectMonitor behövs ej längre (automatisk anslutning)
-
-        function addVideoElement(monitorId, stream) {
-            let video = document.getElementById('video-' + monitorId);
-            if (!video) {
-                video = document.createElement('video');
-                video.id = 'video-' + monitorId;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.style.width = '48%';
-                video.style.height = '48%';
-                video.style.margin = '1%';
-                video.style.background = '#222';
-                video.onclick = () => {
-                    if (focusMonitorId === monitorId) {
-                        focusMonitorId = null;
-                    } else {
-                        focusMonitorId = monitorId;
-                    }
-                    updateVideoFocus();
-                    showMonitorList();
-                };
-                videoContainer.appendChild(video);
-            }
-            video.srcObject = stream;
-            updateVideoFocus();
-        }
-
-        function removeVideoElement(monitorId) {
-            let video = document.getElementById('video-' + monitorId);
-            if (video) {
-                video.srcObject = null;
-                video.remove();
-            }
-        }
-
-        function disconnect() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-
-            remoteVideo.srcObject = null;
-            
-            connectionForm.style.display = 'block';
-            status.style.display = 'none';
-            loading.style.display = 'none';
-            controls.style.display = 'none';
-            
-            connectBtn.disabled = false;
-            connectBtn.textContent = '🔗 Connect';
-            roomIdInput.value = '';
-            isConnected = false;
-            roomId = null;
-
-            // Remove room parameter from URL
-            const url = new URL(window.location);
-            url.searchParams.delete('room');
-            window.history.replaceState({}, document.title, url.pathname);
-        }
-
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-        }
-
-        function hideError() {
-            errorMessage.style.display = 'none';
-        }
-
-        // Handle Enter key in room ID input
-        roomIdInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                connectToRoom();
-            }
-        });
-
-        // Hantera request-offer från viewer till monitor
-        socket.on('connect', () => {
-            // Lyssna på request-offer eventet
-            socket.on('request-offer', (data) => {
-                // Gör inget här, detta är för monitor-sidan
-            });
-        });
-
-        // Handle page unload
-        window.addEventListener('beforeunload', () => {
-            if (isConnected) {
-                disconnect();
-            }
-        });
+    });
+    socket.on('viewer-registered', (data) => {
+        connectionForm.style.display = 'none';
+        status.style.display = 'block';
+        roomInfo.textContent = `Room: ${data.roomId}`;
+        connectionStatus.textContent = 'Waiting for monitor...';
+        connectionStatus.className = 'connection-status status-connecting';
+    });
+    socket.on('offer', (data) => { handleOffer(data.offer); });
+    socket.on('ice-candidate', (data) => { if (pc) pc.addIceCandidate(new RTCIceCandidate(data.candidate)); });
+    socket.on('error', (data) => { showError(data.message); connectBtn.disabled = false; });
+    async function handleOffer(offer) {
+        try {
+            if (pc) pc.close();
+            pc = new RTCPeerConnection(rtcConfig);
+            pc.ontrack = (event) => {
+                if (!stream) {
+                    stream = event.streams[0];
+                    addVideoElement(stream);
+                }
+            };
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', { candidate: event.candidate, roomId, sender: 'viewer' });
+                }
+            };
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('answer', { answer, roomId });
+        } catch (error) { showError('Failed to connect to monitor.'); }
+    }
+    function addVideoElement(stream) {
+        const video = document.createElement('video');
+        video.id = 'monitor-video';
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        video.className = 'monitor-video';
+        videoContainer.appendChild(video);
+        controls.style.display = 'block';
+    }
+    function connectToRoom() {
+        roomId = roomIdInput.value.trim();
+        if (!roomId) { showError('Please enter a Room ID.'); return; }
+        connectBtn.disabled = true;
+        socket.emit('register-viewer', { roomId });
+    }
+    function disconnect() { window.location.reload(); }
+    function showError(msg) { errorMessage.textContent = msg; errorMessage.style.display = 'block'; }
     </script>
 </body>
 </html>

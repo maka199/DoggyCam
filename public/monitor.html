@@ -5,315 +5,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DoggyCam - Monitor Device</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            background: #1a1a1a;
-            color: white;
-            overflow: hidden;
-        }
-        
-        .header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 1rem;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-        }
-        
-        .header h1 {
-            text-align: center;
-            font-size: 1.5rem;
-        }
-        
-        .status {
-            position: fixed;
-            top: 70px;
-            left: 1rem;
-            right: 1rem;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 1rem;
-            border-radius: 10px;
-            z-index: 90;
-            text-align: center;
-        }
-        
-        .room-id {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #4ecdc4;
-            margin-bottom: 0.5rem;
-        }
-        
-        .connection-status {
-            font-size: 0.9rem;
-            padding: 0.5rem;
-            border-radius: 20px;
-            display: inline-block;
-            margin: 0.25rem;
-        }
-        
-        .status-connecting {
-            background: #ffa726;
-        }
-        
-        .status-connected {
-            background: #4caf50;
-        }
-        
-        .status-disconnected {
-            background: #f44336;
-        }
-        
-        .video-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-        }
-        
-        #localVideo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .controls {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 1rem;
-            z-index: 100;
-        }
-        
-        .btn {
-            padding: 1rem;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.2rem;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-start {
-            background: #4caf50;
-            color: white;
-        }
-        
-        .btn-stop {
-            background: #f44336;
-            color: white;
-        }
-        
-        .btn:hover {
-            transform: scale(1.1);
-        }
-        
-        .loading {
-            text-align: center;
-            font-size: 1.2rem;
-            padding: 2rem;
-        }
-
-        .qr-container {
-            position: fixed;
-            top: 50%;
-            left: 1rem;
-            transform: translateY(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 1rem;
-            border-radius: 10px;
-            z-index: 100;
-            text-align: center;
-            color: #333;
-        }
-
-        .qr-code {
-            margin: 0.5rem 0;
-        }
-
-        @media (max-width: 768px) {
-            .qr-container {
-                position: static;
-                margin: 1rem;
-                transform: none;
-            }
-        }
+        body { background: #1a1a1a; color: white; font-family: Arial, sans-serif; }
+        .header { text-align: center; margin-top: 2rem; }
+        .status { text-align: center; margin: 1rem; }
+        .video-container { display: flex; justify-content: center; align-items: center; height: 60vh; }
+        #localVideo { width: 80vw; max-width: 600px; background: #000; border-radius: 10px; }
+        .controls { text-align: center; margin: 2rem; }
+        .qr-container { text-align: center; margin: 2rem; }
+        .qr-code { font-size: 1.5rem; margin: 1rem; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🐕 DoggyCam Monitor</h1>
     </div>
-    
-    <div class="status" id="status">
+    <div class="status">
         <div class="room-id" id="roomId">Connecting...</div>
-        <div class="connection-status status-connecting" id="connectionStatus">Initializing</div>
-        <div id="viewerCount">0 viewers connected</div>
+        <div class="connection-status" id="connectionStatus">Initializing</div>
     </div>
-
     <div class="qr-container" id="qrContainer" style="display: none;">
         <h3>Share this Room ID:</h3>
         <div class="qr-code" id="qrCode"></div>
         <p>Or visit: <span id="viewerUrl"></span></p>
     </div>
-    
     <div class="video-container">
         <video id="localVideo" autoplay muted playsinline></video>
-        <div class="loading" id="loading">
-            <div>📹 Starting camera...</div>
-        </div>
     </div>
-    
     <div class="controls">
-        <button class="btn btn-start" id="startBtn" onclick="startMonitoring()">▶️</button>
-        <button class="btn btn-stop" id="stopBtn" onclick="stopMonitoring()" style="display: none;">⏹️</button>
+        <button id="startBtn" onclick="startMonitoring()">▶️ Start</button>
+        <button id="stopBtn" onclick="stopMonitoring()" style="display: none;">⏹️ Stop</button>
     </div>
-
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
-        socket.on('connect', () => {
-            console.log('[Socket.IO] Connected to server, socket id:', socket.id);
-        });
-        socket.on('disconnect', (reason) => {
-            console.warn('[Socket.IO] Disconnected from server:', reason);
-        });
-        const socket = io();
-        let roomId = null;
-        let localStream = null;
-        let pc = null;
+    const socket = io();
+    let roomId = null;
+    let localStream = null;
+    let pc = null;
+    const localVideo = document.getElementById('localVideo');
+    const roomIdElement = document.getElementById('roomId');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const qrContainer = document.getElementById('qrContainer');
+    const viewerUrl = document.getElementById('viewerUrl');
+    const rtcConfig = { iceServers: [ { urls: 'stun:stun.l.google.com:19302' } ] };
 
-        // DOM elements
-        const localVideo = document.getElementById('localVideo');
-        const loading = document.getElementById('loading');
-        const roomIdElement = document.getElementById('roomId');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const qrContainer = document.getElementById('qrContainer');
-        const viewerUrl = document.getElementById('viewerUrl');
+    socket.on('monitor-registered', (data) => {
+        roomId = data.roomId;
+        roomIdElement.textContent = `Room ID: ${roomId}`;
+        connectionStatus.textContent = 'Waiting for viewer...';
+        qrContainer.style.display = 'block';
+        const baseUrl = window.location.origin;
+        const fullUrl = `${baseUrl}/view?room=${roomId}`;
+        viewerUrl.textContent = fullUrl;
+        document.getElementById('qrCode').innerHTML = `<strong>${roomId}</strong>`;
+    });
 
-        const rtcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+    socket.on('answer', (data) => {
+        if (pc) pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    });
+    socket.on('ice-candidate', (data) => {
+        if (pc) pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    });
+    socket.on('viewer-registered', () => {
+        createOffer();
+        connectionStatus.textContent = 'Broadcasting';
+    });
+
+    async function startMonitoring() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localVideo.srcObject = localStream;
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            socket.emit('register-monitor', {});
+        } catch (error) {
+            alert('Could not access camera: ' + error.message);
+        }
+    }
+    async function createOffer() {
+        pc = new RTCPeerConnection(rtcConfig);
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice-candidate', { candidate: event.candidate, roomId, sender: 'monitor' });
+            }
         };
-
-        socket.on('monitor-registered', (data) => {
-            roomId = data.roomId;
-            roomIdElement.textContent = `Room ID: ${roomId}`;
-            connectionStatus.textContent = 'Waiting for viewer...';
-            connectionStatus.className = 'connection-status status-connecting';
-            qrContainer.style.display = 'block';
-            const baseUrl = window.location.origin;
-            const fullUrl = `${baseUrl}/view?room=${roomId}`;
-            viewerUrl.textContent = fullUrl;
-            document.getElementById('qrCode').innerHTML = `<strong>${roomId}</strong>`;
-        });
-
-        socket.on('answer', (data) => {
-            if (pc) {
-                pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-            }
-        });
-
-        socket.on('ice-candidate', (data) => {
-            if (pc) {
-                pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-            }
-        });
-
-        async function startMonitoring() {
-            try {
-                loading.style.display = 'block';
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: 'environment'
-                    },
-                    audio: true
-                });
-                localVideo.srcObject = localStream;
-                loading.style.display = 'none';
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'block';
-                // Register as monitor
-                socket.emit('register-monitor', {});
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                loading.innerHTML = '<div>❌ Camera access denied or not available</div>';
-                setTimeout(() => {
-                    loading.style.display = 'none';
-                }, 3000);
-            }
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('offer', { offer, roomId });
+    }
+    function stopMonitoring() {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
         }
-
-        async function createOffer() {
-            pc = new RTCPeerConnection(rtcConfig);
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('ice-candidate', {
-                        candidate: event.candidate,
-                        roomId,
-                        sender: 'monitor',
-                    });
-                }
-            };
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit('offer', { offer, roomId });
-        }
-
-        // Viewer triggers offer by joining
-        socket.on('viewer-registered', () => {
-            createOffer();
-            connectionStatus.textContent = 'Broadcasting';
-            connectionStatus.className = 'connection-status status-connected';
-        });
-
-        function stopMonitoring() {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            if (pc) {
-                pc.close();
-                pc = null;
-            }
-            localVideo.srcObject = null;
-            startBtn.style.display = 'block';
-            stopBtn.style.display = 'none';
-            qrContainer.style.display = 'none';
-            connectionStatus.textContent = 'Stopped';
-            connectionStatus.className = 'connection-status status-disconnected';
-        }
-
-        window.addEventListener('load', () => {
-            setTimeout(startMonitoring, 1000);
-        });
-
-        window.addEventListener('beforeunload', () => {
-            stopMonitoring();
-        });
+        if (pc) { pc.close(); pc = null; }
+        localVideo.srcObject = null;
+        startBtn.style.display = 'inline-block';
+        stopBtn.style.display = 'none';
+        qrContainer.style.display = 'none';
+        connectionStatus.textContent = 'Stopped';
+    }
+    window.addEventListener('load', () => { setTimeout(startMonitoring, 500); });
+    window.addEventListener('beforeunload', stopMonitoring);
+    </script>
+</body>
+</html>
