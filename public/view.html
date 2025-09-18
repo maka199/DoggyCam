@@ -233,6 +233,15 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
+        socket.on('connect', () => {
+            console.log('[Socket.IO] Connected to server, socket id:', socket.id);
+        });
+        socket.on('disconnect', (reason) => {
+            console.warn('[Socket.IO] Disconnected from server:', reason);
+        });
+        socket.on('connect_error', (err) => {
+            console.error('[Socket.IO] Connection error:', err);
+        });
         let peerConnections = {}; // monitorId -> RTCPeerConnection
         let streams = {}; // monitorId -> MediaStream
     let selectedMonitors = [];
@@ -405,6 +414,7 @@
 
             // Register as viewer
             socket.emit('register-viewer', { roomId });
+    console.log('[Socket.IO] Sent register-viewer for room:', roomId);
         }
 
         function showMonitorList() {

@@ -191,6 +191,16 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
+        socket.on('connect', () => {
+            console.log('[Socket.IO] Connected to server, socket id:', socket.id);
+        });
+        socket.on('disconnect', (reason) => {
+            console.warn('[Socket.IO] Disconnected from server:', reason);
+        });
+        socket.on('connect_error', (err) => {
+            console.error('[Socket.IO] Connection error:', err);
+        });
+    console.log('[Socket.IO] Sent register-monitor for room:', roomId, 'monitorId:', monitorId);
         let localStream = null;
         let peerConnections = new Map();
         let roomId = null;
