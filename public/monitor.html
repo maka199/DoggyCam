@@ -1,3 +1,42 @@
+        // Lyssna på request-offer från servern (när en viewer vill ansluta till denna monitor)
+        socket.on('request-offer', async (data) => {
+            const viewerId = data.viewerId;
+            if (!viewerId) return;
+            // Skapa peer connection mot viewerId
+            await createPeerConnectionToViewer(viewerId);
+        });
+
+        // Skapa peer connection mot specifik viewer (för split screen)
+        async function createPeerConnectionToViewer(viewerId) {
+            const pc = new RTCPeerConnection(rtcConfig);
+            peerConnections.set(viewerId, pc);
+
+            // Add local stream to peer connection
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, localStream);
+                });
+            }
+
+            // Handle ICE candidates
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', {
+                        candidate: event.candidate,
+                        to: viewerId
+                    });
+                }
+            };
+
+            // Create and send offer
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit('offer', { offer, to: viewerId });
+            } catch (error) {
+                console.error('Error creating offer:', error);
+            }
+        }
 <!DOCTYPE html>
 <html lang="en">
 <head>
