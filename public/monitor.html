@@ -216,6 +216,48 @@
         };
 
         // Socket event handlers
+        // Hantera request-offer från viewer (split screen)
+        socket.on('request-offer', async (data) => {
+            const viewerId = data.viewerId;
+            console.log('[MONITOR] Fick request-offer från viewer:', viewerId);
+            if (!viewerId) return;
+            await createPeerConnectionToViewer(viewerId);
+        });
+
+        // Skapa peer connection mot specifik viewer (för split screen)
+        async function createPeerConnectionToViewer(viewerId) {
+            console.log('[MONITOR] Skapar peer connection till viewer:', viewerId);
+            const pc = new RTCPeerConnection(rtcConfig);
+            peerConnections.set(viewerId, pc);
+
+            // Add local stream to peer connection
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, localStream);
+                });
+            }
+
+            // Handle ICE candidates
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log('[MONITOR] Skickar ICE-candidate till viewer:', viewerId, event.candidate);
+                    socket.emit('ice-candidate', {
+                        candidate: event.candidate,
+                        to: viewerId
+                    });
+                }
+            };
+
+            // Create and send offer
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                console.log('[MONITOR] Skickar offer till viewer:', viewerId);
+                socket.emit('offer', { offer, to: viewerId });
+            } catch (error) {
+                console.error('Error creating offer:', error);
+            }
+        }
         socket.on('monitor-registered', (data) => {
             roomId = data.roomId;
             roomIdElement.textContent = `Room ID: ${roomId}`;
