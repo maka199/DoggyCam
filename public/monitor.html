@@ -197,27 +197,21 @@
         socket.on('disconnect', (reason) => {
             console.warn('[Socket.IO] Disconnected from server:', reason);
         });
-        socket.on('connect_error', (err) => {
-            console.error('[Socket.IO] Connection error:', err);
-        });
-        // Removed log that used roomId before initialization
-        let localStream = null;
-        let peerConnections = new Map();
+        const socket = io();
         let roomId = null;
-        let isMonitoring = false;
+        let localStream = null;
+        let pc = null;
 
         // DOM elements
         const localVideo = document.getElementById('localVideo');
         const loading = document.getElementById('loading');
         const roomIdElement = document.getElementById('roomId');
         const connectionStatus = document.getElementById('connectionStatus');
-        const viewerCount = document.getElementById('viewerCount');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const qrContainer = document.getElementById('qrContainer');
         const viewerUrl = document.getElementById('viewerUrl');
 
-        // WebRTC configuration
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -225,57 +219,11 @@
             ]
         };
 
-        // Socket event handlers
-        // Hantera request-offer från viewer (split screen)
-        socket.on('request-offer', async (data) => {
-            const viewerId = data.viewerId;
-            console.log('[MONITOR] Fick request-offer från viewer:', viewerId);
-            if (!viewerId) return;
-            await createPeerConnectionToViewer(viewerId);
-        });
-
-        // Skapa peer connection mot specifik viewer (för split screen)
-        async function createPeerConnectionToViewer(viewerId) {
-            console.log('[MONITOR] Skapar peer connection till viewer:', viewerId);
-            const pc = new RTCPeerConnection(rtcConfig);
-            peerConnections.set(viewerId, pc);
-
-            // Add local stream to peer connection
-            if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    pc.addTrack(track, localStream);
-                });
-            }
-
-            // Handle ICE candidates
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    // Remove this log, as roomId/monitorId are not set yet
-                    // console.log('[Socket.IO] Sent register-monitor for room:', roomId, 'monitorId:', monitorId);
-                    socket.emit('ice-candidate', {
-                        candidate: event.candidate,
-                        to: viewerId
-                    });
-                }
-            };
-
-            // Create and send offer
-            try {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                console.log('[MONITOR] Skickar offer till viewer:', viewerId);
-                socket.emit('offer', { offer, to: viewerId });
-            } catch (error) {
-                console.error('Error creating offer:', error);
-            }
-        }
         socket.on('monitor-registered', (data) => {
             roomId = data.roomId;
             roomIdElement.textContent = `Room ID: ${roomId}`;
-            connectionStatus.textContent = 'Waiting for viewers';
+            connectionStatus.textContent = 'Waiting for viewer...';
             connectionStatus.className = 'connection-status status-connecting';
-            
-            // Show QR code container with room info
             qrContainer.style.display = 'block';
             const baseUrl = window.location.origin;
             const fullUrl = `${baseUrl}/view?room=${roomId}`;
@@ -283,71 +231,35 @@
             document.getElementById('qrCode').innerHTML = `<strong>${roomId}</strong>`;
         });
 
-
-
-        socket.on('viewer-left', (data) => {
-            console.log('Viewer left:', data.viewerId);
-            if (peerConnections.has(data.viewerId)) {
-                peerConnections.get(data.viewerId).close();
-                peerConnections.delete(data.viewerId);
-            }
-            updateConnectionStatus();
-        });
-
         socket.on('answer', (data) => {
-            const pc = peerConnections.get(data.from);
             if (pc) {
                 pc.setRemoteDescription(new RTCSessionDescription(data.answer));
             }
         });
 
         socket.on('ice-candidate', (data) => {
-            const pc = peerConnections.get(data.from);
             if (pc) {
                 pc.addIceCandidate(new RTCIceCandidate(data.candidate));
             }
         });
 
-
-
-        function updateConnectionStatus() {
-            const connectedViewers = peerConnections.size;
-            viewerCount.textContent = `${connectedViewers} viewer${connectedViewers !== 1 ? 's' : ''} connected`;
-            
-            if (connectedViewers > 0) {
-                connectionStatus.textContent = 'Broadcasting';
-                connectionStatus.className = 'connection-status status-connected';
-            } else {
-                connectionStatus.textContent = 'Waiting for viewers';
-                connectionStatus.className = 'connection-status status-connecting';
-            }
-        }
-
-        // Monitoring controls
         async function startMonitoring() {
             try {
                 loading.style.display = 'block';
-                
-                // Request camera access
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         width: { ideal: 1280 },
                         height: { ideal: 720 },
-                        facingMode: 'environment' // Use back camera on mobile
+                        facingMode: 'environment'
                     },
                     audio: true
                 });
-
                 localVideo.srcObject = localStream;
                 loading.style.display = 'none';
-                
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
-                isMonitoring = true;
-
                 // Register as monitor
                 socket.emit('register-monitor', {});
-
             } catch (error) {
                 console.error('Error accessing camera:', error);
                 loading.innerHTML = '<div>❌ Camera access denied or not available</div>';
@@ -357,37 +269,51 @@
             }
         }
 
+        async function createOffer() {
+            pc = new RTCPeerConnection(rtcConfig);
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', {
+                        candidate: event.candidate,
+                        roomId,
+                        sender: 'monitor',
+                    });
+                }
+            };
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit('offer', { offer, roomId });
+        }
+
+        // Viewer triggers offer by joining
+        socket.on('viewer-registered', () => {
+            createOffer();
+            connectionStatus.textContent = 'Broadcasting';
+            connectionStatus.className = 'connection-status status-connected';
+        });
+
         function stopMonitoring() {
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
-            
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
             localVideo.srcObject = null;
-            
-            // Close all peer connections
-            peerConnections.forEach(pc => pc.close());
-            peerConnections.clear();
-            
             startBtn.style.display = 'block';
             stopBtn.style.display = 'none';
-            isMonitoring = false;
-            
             qrContainer.style.display = 'none';
             connectionStatus.textContent = 'Stopped';
             connectionStatus.className = 'connection-status status-disconnected';
-            viewerCount.textContent = '0 viewers connected';
         }
 
-        // Auto-start monitoring when page loads
         window.addEventListener('load', () => {
             setTimeout(startMonitoring, 1000);
         });
 
-        // Handle page unload
         window.addEventListener('beforeunload', () => {
             stopMonitoring();
         });
-    </script>
-</body>
-</html>

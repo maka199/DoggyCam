@@ -249,6 +249,10 @@
         let availableMonitors = [];
         let roomId = null;
         let isConnected = false;
+        const socket = io();
+        let roomId = null;
+        let pc = null;
+        let stream = null;
 
         // DOM elements
         const connectionForm = document.getElementById('connectionForm');
@@ -260,11 +264,8 @@
         const loading = document.getElementById('loading');
         const controls = document.getElementById('controls');
         const errorMessage = document.getElementById('errorMessage');
-        const monitorListContainer = document.getElementById('monitorListContainer');
-        const monitorList = document.getElementById('monitorList');
         const videoContainer = document.getElementById('videoContainer');
 
-        // WebRTC configuration
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -272,72 +273,34 @@
             ]
         };
 
-        // Check for room ID in URL parameters
         window.addEventListener('load', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const urlRoomId = urlParams.get('room');
             if (urlRoomId) {
                 roomIdInput.value = urlRoomId;
-                // Auto-connect if room ID is in URL
                 setTimeout(() => connectToRoom(), 500);
             }
         });
 
-        // Socket event handlers
         socket.on('viewer-registered', (data) => {
             console.log('Registered as viewer for room:', data.roomId);
             connectionForm.style.display = 'none';
             status.style.display = 'block';
             loading.style.display = 'block';
             roomInfo.textContent = `Room: ${data.roomId}`;
-            connectionStatus.textContent = 'Waiting for monitor(s)';
+            connectionStatus.textContent = 'Waiting for monitor...';
             connectionStatus.className = 'connection-status status-connecting';
-            if (data.monitors && data.monitors.length > 0) {
-                availableMonitors = data.monitors;
-                // Anslut automatiskt till alla monitorer
-                availableMonitors.forEach(monitorId => {
-                    if (!selectedMonitors.includes(monitorId)) {
-                        selectedMonitors.push(monitorId);
-                        socket.emit('request-offer', { monitorId });
-                    }
-                });
-                showMonitorList();
-            }
-        });
-
-        socket.on('monitors-updated', (data) => {
-            availableMonitors = data.monitors || [];
-            // Anslut automatiskt till nya monitorer
-            availableMonitors.forEach(monitorId => {
-                if (!selectedMonitors.includes(monitorId)) {
-                    selectedMonitors.push(monitorId);
-                    socket.emit('request-offer', { monitorId });
-                }
-            });
-            // Ta bort video för monitorer som inte längre finns
-            Object.keys(streams).forEach(monitorId => {
-                if (!availableMonitors.includes(monitorId)) {
-                    removeVideoElement(monitorId);
-                }
-            });
-            showMonitorList();
         });
 
         socket.on('offer', (data) => {
-            const monitorId = data.from;
-            if (!selectedMonitors.includes(monitorId)) return;
-            handleOffer(monitorId, data.offer);
+            handleOffer(data.offer);
         });
 
         socket.on('ice-candidate', (data) => {
-            const monitorId = data.from;
-            if (peerConnections[monitorId]) {
-                peerConnections[monitorId].addIceCandidate(new RTCIceCandidate(data.candidate));
+            if (pc) {
+                pc.addIceCandidate(new RTCIceCandidate(data.candidate));
             }
         });
-
-        // Om en monitor försvinner, ta bort dess video
-        // (monitors-updated hanterar detta)
 
         socket.on('error', (data) => {
             showError(data.message);
@@ -345,122 +308,68 @@
             connectBtn.textContent = '🔗 Connect';
         });
 
-        // WebRTC functions
-        async function handleOffer(monitorId, offer) {
+        async function handleOffer(offer) {
             try {
-                if (peerConnections[monitorId]) {
-                    peerConnections[monitorId].close();
-                }
-                const pc = new RTCPeerConnection(rtcConfig);
-                peerConnections[monitorId] = pc;
+                if (pc) pc.close();
+                pc = new RTCPeerConnection(rtcConfig);
 
-                // Handle incoming video stream
                 pc.ontrack = (event) => {
-                    if (!streams[monitorId]) {
-                        streams[monitorId] = event.streams[0];
-                        addVideoElement(monitorId, event.streams[0]);
+                    if (!stream) {
+                        stream = event.streams[0];
+                        addVideoElement(stream);
                     }
                 };
 
-                // Handle ICE candidates
                 pc.onicecandidate = (event) => {
                     if (event.candidate) {
                         socket.emit('ice-candidate', {
                             candidate: event.candidate,
-                            to: monitorId
+                            roomId,
+                            sender: 'viewer',
                         });
-                    }
-                };
-
-                pc.onconnectionstatechange = () => {
-                    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                        removeVideoElement(monitorId);
-                        if (peerConnections[monitorId]) {
-                            peerConnections[monitorId].close();
-                            delete peerConnections[monitorId];
-                        }
-                        delete streams[monitorId];
                     }
                 };
 
                 await pc.setRemoteDescription(new RTCSessionDescription(offer));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                socket.emit('answer', { answer, to: monitorId });
-
-                loading.style.display = 'none';
-                controls.style.display = 'flex';
-                connectionStatus.textContent = 'Connected - Streaming';
-                connectionStatus.className = 'connection-status status-connected';
-                isConnected = true;
+                socket.emit('answer', { answer, roomId });
             } catch (error) {
-                console.error('Error handling offer:', error);
-                showError('Failed to establish video connection');
+                showError('Failed to connect to monitor.');
             }
         }
 
-        // Connection controls
+        function addVideoElement(stream) {
+            const video = document.createElement('video');
+            video.id = 'monitor-video';
+            video.autoplay = true;
+            video.playsInline = true;
+            video.srcObject = stream;
+            video.className = 'monitor-video';
+            videoContainer.appendChild(video);
+            loading.style.display = 'none';
+            controls.style.display = 'block';
+        }
+
         function connectToRoom() {
-            const inputRoomId = roomIdInput.value.trim();
-            if (!inputRoomId) {
-                showError('Please enter a Room ID');
+            roomId = roomIdInput.value.trim();
+            if (!roomId) {
+                showError('Please enter a Room ID.');
                 return;
             }
-
-            roomId = inputRoomId;
             connectBtn.disabled = true;
-            connectBtn.textContent = 'Connecting...';
-            hideError();
-
-            // Register as viewer
+            connectBtn.textContent = '🔗 Connecting...';
             socket.emit('register-viewer', { roomId });
-    console.log('[Socket.IO] Sent register-viewer for room:', roomId);
         }
 
-        function showMonitorList() {
-            // Rensa gamla
-            monitorList.innerHTML = '';
-            if (!availableMonitors || availableMonitors.length === 0) {
-                monitorListContainer.style.display = 'none';
-                return;
-            }
-            monitorListContainer.style.display = 'block';
-            // Skapa "fokus"-knappar för varje monitor
-            availableMonitors.forEach(monitorId => {
-                const btn = document.createElement('button');
-                btn.textContent = focusMonitorId === monitorId ? 'Visa alla' : 'Fokusera';
-                btn.style.marginRight = '0.5em';
-                btn.onclick = () => {
-                    if (focusMonitorId === monitorId) {
-                        focusMonitorId = null;
-                        updateVideoFocus();
-                        showMonitorList();
-                    } else {
-                        focusMonitorId = monitorId;
-                        updateVideoFocus();
-                        showMonitorList();
-                    }
-                };
-                const label = document.createElement('span');
-                label.textContent = ' ' + monitorId.substring(0, 8);
-                monitorList.appendChild(btn);
-                monitorList.appendChild(label);
-            });
+        function disconnect() {
+            window.location.reload();
         }
 
-        function updateVideoFocus() {
-            Object.keys(streams).forEach(monitorId => {
-                let video = document.getElementById('video-' + monitorId);
-                if (video) {
-                    if (focusMonitorId && focusMonitorId !== monitorId) {
-                        video.style.display = 'none';
-                    } else {
-                        video.style.display = 'inline-block';
-                        video.style.width = focusMonitorId ? '96vw' : '48%';
-                        video.style.height = focusMonitorId ? '80vh' : '48%';
-                        video.style.margin = focusMonitorId ? 'auto' : '1%';
-                    }
-                }
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+        }
             });
         }
 
