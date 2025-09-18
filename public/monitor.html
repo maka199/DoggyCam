@@ -250,7 +250,8 @@
             // Handle ICE candidates
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log('[MONITOR] Skickar ICE-candidate till viewer:', viewerId, event.candidate);
+                    // Remove this log, as roomId/monitorId are not set yet
+                    // console.log('[Socket.IO] Sent register-monitor for room:', roomId, 'monitorId:', monitorId);
                     socket.emit('ice-candidate', {
                         candidate: event.candidate,
                         to: viewerId
