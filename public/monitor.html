@@ -200,7 +200,7 @@
         socket.on('connect_error', (err) => {
             console.error('[Socket.IO] Connection error:', err);
         });
-    console.log('[Socket.IO] Sent register-monitor for room:', roomId, 'monitorId:', monitorId);
+        // Removed log that used roomId before initialization
         let localStream = null;
         let peerConnections = new Map();
         let roomId = null;

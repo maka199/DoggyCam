@@ -46,19 +46,33 @@ io.on('connection', (socket) => {
   // Register device as monitor (home device with camera)
   socket.on('register-monitor', (data) => {
     // Use static room ID if set, otherwise from data, otherwise generate
-    const roomId = STATIC_ROOM_ID || data.roomId || uuidv4();
+    let roomId;
+    if (STATIC_ROOM_ID) {
+      roomId = STATIC_ROOM_ID;
+    } else if (data.roomId) {
+      roomId = data.roomId;
+    } else {
+      // Always allow a new room if none is specified
+      roomId = uuidv4();
+    }
     devices.set(socket.id, { type: 'monitor', roomId, socket });
 
     if (!rooms.has(roomId)) {
-      rooms.set(roomId, { monitors: new Set(), viewers: new Set() });
+      rooms.set(roomId, { monitor: null, viewers: new Set() });
     }
-    rooms.get(roomId).monitors.add(socket.id);
+    const room = rooms.get(roomId);
+    if (room.monitor && (STATIC_ROOM_ID || data.roomId)) {
+      // Only block if a monitor is already present for a specific roomId
+      socket.emit('error', { message: 'A monitor is already connected to this room.' });
+      return;
+    }
+    room.monitor = socket.id;
 
     socket.join(roomId);
     // Skicka tillbaka roomId och monitorId (socket.id)
     socket.emit('monitor-registered', { roomId, monitorId: socket.id });
-    // Uppdatera viewers i rummet om tillgängliga monitorer
-    io.to(roomId).emit('monitors-updated', { monitors: Array.from(rooms.get(roomId).monitors) });
+    // Uppdatera viewers i rummet om tillgänglig monitor
+    io.to(roomId).emit('monitors-updated', { monitors: [room.monitor] });
     console.log(`Monitor registered with room ID: ${roomId}, monitorId: ${socket.id}`);
   });
 
@@ -75,10 +89,10 @@ io.on('connection', (socket) => {
     room.viewers.add(socket.id);
 
     socket.join(roomId);
-    // Skicka tillbaka roomId och lista på monitorer
-    socket.emit('viewer-registered', { roomId, monitors: Array.from(room.monitors) });
+    // Skicka tillbaka roomId och monitor (om någon finns)
+    socket.emit('viewer-registered', { roomId, monitors: room.monitor ? [room.monitor] : [] });
     // Skicka uppdaterad monitor-lista till alla viewers
-    io.to(roomId).emit('monitors-updated', { monitors: Array.from(room.monitors) });
+    io.to(roomId).emit('monitors-updated', { monitors: room.monitor ? [room.monitor] : [] });
     console.log(`Viewer registered for room ID: ${roomId}`);
   });
 
@@ -125,14 +139,14 @@ io.on('connection', (socket) => {
       const room = rooms.get(device.roomId);
       if (room) {
         if (device.type === 'monitor') {
-          room.monitors.delete(socket.id);
+          room.monitor = null;
           // Inform viewers att monitor försvann
-          io.to(device.roomId).emit('monitors-updated', { monitors: Array.from(room.monitors) });
+          io.to(device.roomId).emit('monitors-updated', { monitors: [] });
         } else if (device.type === 'viewer') {
           room.viewers.delete(socket.id);
         }
         // Clean up empty rooms
-        if (room.monitors.size === 0 && room.viewers.size === 0) {
+        if (!room.monitor && room.viewers.size === 0) {
           rooms.delete(device.roomId);
         }
       }
