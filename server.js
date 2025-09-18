@@ -1,12 +1,3 @@
-  // Viewer begär offer från specifik monitor
-  socket.on('request-offer', (data) => {
-    const device = devices.get(socket.id);
-    if (device && device.type === 'viewer') {
-      const { monitorId } = data;
-      // Skicka till rätt monitor
-      io.to(monitorId).emit('request-offer', { viewerId: socket.id });
-    }
-  });
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
