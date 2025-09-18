@@ -57,7 +57,26 @@ The server will start on `http://localhost:3000`
 
 ![Viewer Device](https://github.com/user-attachments/assets/70040ce5-33ed-4314-9175-34a8df6fe932)
 
-## Usage Tips
+
+## Persistent Room ID (Optional)
+
+By default, DoggyCam generates ett nytt Room ID varje gång servern startas. Om du vill använda samma Room ID varje gång (t.ex. för att slippa uppdatera på viewer-sidan), kan du sätta miljövariabeln `ROOM_ID`.
+
+### Exempel (lokalt)
+
+```bash
+ROOM_ID=doggycam123 npm start
+```
+
+### Exempel (Render)
+
+1. Gå till din tjänst på Render.
+2. Under "Environment" lägger du till en ny miljövariabel:
+	- **Key:** ROOM_ID
+	- **Value:** (valfritt ID, t.ex. doggycam123)
+3. Spara och starta om tjänsten.
+
+Nu kommer samma Room ID alltid användas tills du ändrar variabeln.
 
 - **Camera Selection**: The monitor device will automatically use the back camera on mobile devices
 - **Network Requirements**: Both devices need internet access, but the video streams directly between them

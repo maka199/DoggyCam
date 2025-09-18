@@ -35,13 +35,17 @@ app.get('/view', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'view.html'));
 });
 
+// Static Room ID support
+const STATIC_ROOM_ID = process.env.ROOM_ID || null;
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('A device connected:', socket.id);
 
   // Register device as monitor (home device with camera)
   socket.on('register-monitor', (data) => {
-    const roomId = data.roomId || uuidv4();
+    // Use static room ID if set, otherwise from data, otherwise generate
+    const roomId = STATIC_ROOM_ID || data.roomId || uuidv4();
     devices.set(socket.id, { type: 'monitor', roomId, socket });
     
     if (!rooms.has(roomId)) {
